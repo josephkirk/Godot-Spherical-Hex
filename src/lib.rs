@@ -1,10 +1,11 @@
 use godot::prelude::*;
-mod hex;
-mod sphere_grid;
-mod math;
+
+pub mod hex;
+pub mod sphere_grid;
+pub mod math;
+pub mod hex_grid;
 
 struct SphericalHexExtension;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for SphericalHexExtension {}
-

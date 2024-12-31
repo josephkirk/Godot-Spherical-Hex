@@ -1,4 +1,4 @@
-use glam::{Vec3, const_vec3};
+use glam::{Vec3, vec3};
 
 // Golden ratio components for icosahedron construction
 const PHI: f32 = 1.618033988749895;
@@ -62,18 +62,18 @@ impl Clone for IcosahedronFace {
 pub fn generate_icosahedron() -> Vec<IcosahedronFace> {
     // Generate the 12 vertices of the icosahedron
     let vertices = [
-        const_vec3!([ ONE_NORM,  0.0,       PHI_NORM]), // 0
-        const_vec3!([-ONE_NORM,  0.0,       PHI_NORM]), // 1
-        const_vec3!([ ONE_NORM,  0.0,      -PHI_NORM]), // 2
-        const_vec3!([-ONE_NORM,  0.0,      -PHI_NORM]), // 3
-        const_vec3!([ 0.0,       PHI_NORM,  ONE_NORM]), // 4
-        const_vec3!([ 0.0,      -PHI_NORM,  ONE_NORM]), // 5
-        const_vec3!([ 0.0,       PHI_NORM, -ONE_NORM]), // 6
-        const_vec3!([ 0.0,      -PHI_NORM, -ONE_NORM]), // 7
-        const_vec3!([ PHI_NORM,  ONE_NORM,  0.0]),      // 8
-        const_vec3!([-PHI_NORM,  ONE_NORM,  0.0]),      // 9
-        const_vec3!([ PHI_NORM, -ONE_NORM,  0.0]),      // 10
-        const_vec3!([-PHI_NORM, -ONE_NORM,  0.0])       // 11
+        vec3(ONE_NORM, 0.0, PHI_NORM),      // 0
+        vec3(-ONE_NORM, 0.0, PHI_NORM),     // 1
+        vec3(ONE_NORM, 0.0, -PHI_NORM),     // 2
+        vec3(-ONE_NORM, 0.0, -PHI_NORM),    // 3
+        vec3(0.0, PHI_NORM, ONE_NORM),      // 4
+        vec3(0.0, -PHI_NORM, ONE_NORM),     // 5
+        vec3(0.0, PHI_NORM, -ONE_NORM),     // 6
+        vec3(0.0, -PHI_NORM, -ONE_NORM),    // 7
+        vec3(PHI_NORM, ONE_NORM, 0.0),      // 8
+        vec3(-PHI_NORM, ONE_NORM, 0.0),     // 9
+        vec3(PHI_NORM, -ONE_NORM, 0.0),     // 10
+        vec3(-PHI_NORM, -ONE_NORM, 0.0)     // 11
     ];
 
     // Define the 20 faces of the icosahedron
@@ -104,7 +104,7 @@ pub fn project_point_to_sphere(point: Vec3, radius: f32) -> Vec3 {
 pub fn calculate_face_area(face: &IcosahedronFace) -> f32 {
     let a = face.vertices[1] - face.vertices[0];
     let b = face.vertices[2] - face.vertices[0];
-    (a.cross(b).length() / 2.0)
+    a.cross(b).length() / 2.0
 }
 
 #[cfg(test)]

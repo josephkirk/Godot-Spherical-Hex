@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://b6x7g8w8w8w8w"]
+
+[node name="Main" type="Node3D"]
+
+[node name="SphericalHexGrid" type="SphericalHexGrid" parent="."]
+radius = 5.0
+resolution = 2
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 5, 10)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.766044, 0.642788, 0, -0.642788, 0.766044, 0, 5, 0)

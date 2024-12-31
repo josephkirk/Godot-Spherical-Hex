@@ -1,8 +1,9 @@
 use godot::prelude::*;
-use glam::Vec3;
+use glam::{Vec3, vec3};
 use std::collections::HashMap;
 
 use crate::hex::HexTile;
+use crate::hex::HexCoord;
 use crate::hex_grid::{HexGrid, HexGridSettings};
 use crate::math::projection::{generate_icosahedron, IcosahedronFace};
 
@@ -52,41 +53,51 @@ impl SphericalHexGrid {
 
         // Set up neighbor relationships
         for (coord, tile) in &self.tiles {
-            let neighbor_positions = hex_grid.get_neighbor_positions(coord);
-            tile.bind_mutself().connect_with_neighbors(&neighbor_positions);
+            let neighbor_positions = hex_grid.get_neighbor_positions(&HexCoord::new(0, 0)); // temp
+            tile.bind_mut().connect_with_neighbors(&neighbor_positions);
         }
     }
 
     fn create_hex_tile_at(&mut self, position: Vec3, normal: Vec3, coord: HexCoord) -> Option<Gd<HexTile>> {
-        let scene = &self.base.get_scene();
         let mut tile = HexTile::new_alloc();
         
         // Set tile transform
         let scale = self.hex_size * self.radius;
-        let up = Vec3::Y;
-        let rotation = if normal.dot(up) > 0.999 {
-            Basis::from_euler(EulerRot::XYZ, 0.0, 0.0, 0.0)
+        let up = vec3(0.0, 1.0, 0.0);
+        
+        let basis = if normal.dot(up) > 0.999 {
+            Basis::from_euler(Vector3::new(0.0, 0.0, 0.0))
         } else if normal.dot(up) < -0.999 {
-            Basis::from_euler(EulerRot::XYZ, std::f32::consts::PI, 0.0, 0.0)
+            Basis::from_euler(Vector3::new(std::f32::consts::PI, 0.0, 0.0))
         } else {
             let right = up.cross(normal).normalize();
             let up = normal.cross(right);
-            Basis::from_cols(right, up, normal)
+            Basis::from_cols(
+                Vector3::new(right.x, right.y, right.z),
+                Vector3::new(up.x, up.y, up.z),
+                Vector3::new(normal.x, normal.y, normal.z)
+            )
         };
 
-        tile.set_transform(Transform3D::new(
-            rotation,
-            Vector3::new(position.x, position.y, position.z) * self.radius,
-            Vector3::ONE * scale
-        ));
+        let transform = Transform3D::new(
+            basis,
+            Vector3::new(position.x, position.y, position.z) * self.radius
+        );
+        tile.set_transform(transform);
 
         // Store coordinate
-        tile.bind_mutself().set_coordinate(coord);
+        tile.bind_mut().set_coordinate(coord);
         
-        // Add tile to grid
-        self.base.add_child(tile.share().upcast());
-        self.tiles.insert(coord_to_key(&coord), tile.share());
+        // Add tile to scene tree
+        let node: Gd<Node> = tile.as_node();
+        unsafe {
+            self.base.get_parent().unwrap()
+                .assume_shared()
+                .cast::<Node>()
+                .add_child(node.clone());
+        }
         
+        self.tiles.insert(coord_to_key(&coord), tile.clone());
         Some(tile)
     }
 
@@ -126,7 +137,7 @@ impl SphericalHexGrid {
                         let dist_b = (pos_b - world_pos).length_squared();
                         dist_a.partial_cmp(&dist_b).unwrap()
                     })
-                    .map(|tile| tile.share())
+                    .map(|tile| tile.clone())
             })
     }
 }
