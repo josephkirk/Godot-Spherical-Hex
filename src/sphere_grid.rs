@@ -24,9 +24,11 @@ impl SphericalHexGrid {
     #[func]
     pub fn generate_grid(&mut self) {
         // Clear existing tiles
-        for (_, tile) in self.tiles.drain() {
+        let tiles_to_remove: Vec<_> = self.tiles.values().cloned().collect();
+        for mut tile in tiles_to_remove {
             tile.queue_free();
         }
+        self.tiles.clear();
 
         // Generate base icosahedron and subdivide
         let base_faces = generate_icosahedron();
@@ -47,15 +49,41 @@ impl SphericalHexGrid {
         }
 
         // Create hex tiles for each position
-        for (coord, position) in hex_grid.get_all_positions() {
-            self.create_hex_tile_at(*position, face_normal_at_point(*position), coord);
+        for (coord, position) in hex_grid.get_all_positions().iter() {
+            self.create_hex_tile_at(*position, face_normal_at_point(*position), *coord);
         }
 
-        // Set up neighbor relationships
-        for (coord, tile) in &self.tiles {
-            let neighbor_positions = hex_grid.get_neighbor_positions(&HexCoord::new(0, 0)); // temp
-            tile.bind_mut().connect_with_neighbors(&neighbor_positions);
+        // First collect all neighbor positions
+        let mut neighbor_data = Vec::new();
+        for (key, _) in &self.tiles {
+            let coord = string_to_coord(key);
+            let neighbor_positions = hex_grid.get_neighbor_positions(&coord);
+            neighbor_data.push((key.clone(), neighbor_positions));
         }
+
+        // Then update neighbors
+        for (key, positions) in neighbor_data {
+            let neighbors: Vec<_> = positions.iter()
+                .filter_map(|pos| self.get_tile_at_world_pos(*pos))
+                .collect();
+
+            if let Some(tile) = self.tiles.get_mut(&key) {
+                tile.bind_mut().connect_neighbors(neighbors);
+            }
+        }
+    }
+
+    fn get_tile_at_world_pos(&self, pos: Vec3) -> Option<Gd<HexTile>> {
+        let godot_pos = Vector3::new(pos.x, pos.y, pos.z);
+        self.tiles.values()
+            .min_by(|a, b| {
+                let pos_a = a.get_position();
+                let pos_b = b.get_position();
+                let dist_a = (pos_a - godot_pos).length_squared();
+                let dist_b = (pos_b - godot_pos).length_squared();
+                dist_a.partial_cmp(&dist_b).unwrap()
+            })
+            .map(|tile| tile.clone())
     }
 
     fn create_hex_tile_at(&mut self, position: Vec3, normal: Vec3, coord: HexCoord) -> Option<Gd<HexTile>> {
@@ -66,9 +94,10 @@ impl SphericalHexGrid {
         let up = vec3(0.0, 1.0, 0.0);
         
         let basis = if normal.dot(up) > 0.999 {
-            Basis::from_euler(Vector3::new(0.0, 0.0, 0.0))
+            Basis::IDENTITY
         } else if normal.dot(up) < -0.999 {
-            Basis::from_euler(Vector3::new(std::f32::consts::PI, 0.0, 0.0))
+            // Create an inverted basis for bottom-facing tiles
+            Basis::from_euler(EulerOrder::XYZ, Vector3::new(std::f32::consts::PI, 0.0, 0.0))
         } else {
             let right = up.cross(normal).normalize();
             let up = normal.cross(right);
@@ -83,21 +112,17 @@ impl SphericalHexGrid {
             basis,
             Vector3::new(position.x, position.y, position.z) * self.radius
         );
-        tile.set_transform(transform);
-
-        // Store coordinate
-        tile.bind_mut().set_coordinate(coord);
         
-        // Add tile to scene tree
-        let node: Gd<Node> = tile.as_node();
+        tile.set_transform(transform);
+        tile.bind_mut().set_coordinate(coord.q, coord.r);
+
         unsafe {
-            self.base.get_parent().unwrap()
-                .assume_shared()
-                .cast::<Node>()
-                .add_child(node.clone());
+            let parent_node = self.base.to_gd();
+            tile.reparent(&parent_node.upcast::<Node>());
         }
         
-        self.tiles.insert(coord_to_key(&coord), tile.clone());
+        let key = coord_to_key(&coord);
+        self.tiles.insert(key, tile.clone());
         Some(tile)
     }
 
@@ -128,17 +153,7 @@ impl SphericalHexGrid {
                 let dist_b = b.center().dot(normalized);
                 dist_b.partial_cmp(&dist_a).unwrap()
             })
-            .and_then(|face| {
-                self.tiles.values()
-                    .min_by(|a, b| {
-                        let pos_a = a.get_position();
-                        let pos_b = b.get_position();
-                        let dist_a = (pos_a - world_pos).length_squared();
-                        let dist_b = (pos_b - world_pos).length_squared();
-                        dist_a.partial_cmp(&dist_b).unwrap()
-                    })
-                    .map(|tile| tile.clone())
-            })
+            .and_then(|_| self.get_tile_at_world_pos(pos))
     }
 }
 
@@ -167,4 +182,14 @@ fn face_normal_at_point(point: Vec3) -> Vec3 {
 
 fn coord_to_key(coord: &HexCoord) -> String {
     format!("{}_{}", coord.q, coord.r)
+}
+
+fn string_to_coord(key: &str) -> HexCoord {
+    let parts: Vec<&str> = key.split('_').collect();
+    if parts.len() == 2 {
+        if let (Ok(q), Ok(r)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
+            return HexCoord::new(q, r);
+        }
+    }
+    HexCoord::new(0, 0)
 }
